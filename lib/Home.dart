@@ -60,12 +60,12 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget column() {
-    return ListView(
-      physics: BouncingScrollPhysics(),
+    return Column(
       children: [
-        langaugeSwitch(),
-        filterBoard(),
+        // langaugeSwitch(),
+
         listView(),
+        filterBoard(),
       ],
     );
   }
@@ -81,44 +81,46 @@ class _HomePageState extends State<HomePage> {
 
     alphabets.sort();
 
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: BouncingScrollPhysics(),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
-        childAspectRatio: 2,
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
-      ),
-      padding: EdgeInsets.all(8),
-      itemCount: alphabets.length,
-      itemBuilder: (BuildContext context, int index) {
-        String a = alphabets[index];
-        bool isSelected = selectedAlphabet == a;
-        Color color = isSelected ? Colors.purple : Colors.transparent;
-        return InkWell(
-          onTap: () {
-            setState(() {
-              selectedAlphabet = isSelected ? '' : a;
-            });
-          },
-          child: Container(
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey),
-            ),
-            child: Text(
-              a,
-              style: TextStyle(
-                color: isSelected ? Colors.white : null,
-                fontSize: 28,
+    return Container(
+      height: 350,
+      color: const Color.fromARGB(255, 47, 1, 26),
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: BouncingScrollPhysics(),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 5,
+          childAspectRatio: 2,
+        ),
+        itemCount: alphabets.length,
+        itemBuilder: (BuildContext context, int index) {
+          String a = alphabets[index];
+          bool isSelected = selectedAlphabet == a;
+          Color color = isSelected ? Colors.purple : Colors.transparent;
+          return InkWell(
+            onTap: () {
+              setState(() {
+                selectedAlphabet = isSelected ? '' : a;
+              });
+            },
+            child: Container(
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: color,
+                // borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.withOpacity(0.2)),
+              ),
+              child: Text(
+                a,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: isSelected ? Colors.white : null,
+                  fontSize: 22,
+                ),
               ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 
@@ -145,44 +147,68 @@ class _HomePageState extends State<HomePage> {
 
   Widget listView() {
     List<Contact> list = contacts.where((c) {
-      String firstLetter = c.displayName.characters.firstOrNull ?? '';
-      return selectedAlphabet.isEmpty ? true : firstLetter == selectedAlphabet;
+      String fullName = c.displayName;
+      // String firstLetter = fullName.characters.firstOrNull ?? '';
+      return selectedAlphabet.isEmpty ? true : fullName.contains(selectedAlphabet);
+      // firstLetter == selectedAlphabet;
     }).toList();
-    return ListView.builder(
-      physics: BouncingScrollPhysics(),
-      shrinkWrap: true,
-      controller: _scrollController,
-      itemCount: list.length,
-      itemBuilder: (context, index) {
-        final Contact contact = list[index];
-        return Container(
-          margin: const EdgeInsets.symmetric(vertical: 12),
-          padding: EdgeInsets.only(bottom: 8),
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(color: Colors.grey.shade100),
-            ),
-          ),
-          child: ListTile(
-            title: Text(
-              contact.displayName,
-              style: TextStyle(
-                fontSize: 35,
+    return Expanded(
+      child: ListView.builder(
+        physics: BouncingScrollPhysics(),
+        controller: _scrollController,
+        itemCount: list.length,
+        itemBuilder: (context, int index) {
+          final Contact contact = list[index];
+          return Container(
+            margin: const EdgeInsets.symmetric(vertical: 4),
+            padding: EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  width: 0.25,
+                  color: Colors.yellow.withOpacity(0.25),
+                ),
               ),
             ),
-            trailing: callButton(contact.phones.first.number),
-          ),
-        );
-      },
+            child: Row(
+              children: [
+                Text(
+                  '${index + 1}. ',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                  ),
+                ),
+                Expanded(
+                  child: RichText(
+                    text: TextSpan(
+                      children: _highlightAlphabet(contact.displayName),
+                      style: TextStyle(
+                        fontSize: 22,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+                callButton(contact.phones.first.number),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 
   Widget callButton(String number) {
     return CircleAvatar(
-      radius: 50,
+      // radius: 15,
       backgroundColor: Colors.green.shade800,
       child: IconButton(
-        icon: Icon(Icons.call, color: Colors.white),
+        icon: Icon(
+          Icons.call,
+          size: 18,
+          color: Colors.white,
+        ),
         onPressed: () async {
           final DirectDialer dialer = await DirectDialer.instance;
           await dialer.dial(number);
@@ -206,5 +232,34 @@ class _HomePageState extends State<HomePage> {
     }
     if (!mounted) return;
     setState(() {});
+  }
+
+  List<InlineSpan> _highlightAlphabet(String displayName) {
+    if (selectedAlphabet.isEmpty) {
+      return [TextSpan(text: displayName)];
+    }
+    final matches = RegExp(RegExp.escape(selectedAlphabet)).allMatches(displayName);
+    if (matches.isEmpty) {
+      return [TextSpan(text: displayName)];
+    }
+    List<InlineSpan> spans = [];
+    int last = 0;
+    for (final match in matches) {
+      if (match.start > last) {
+        spans.add(TextSpan(text: displayName.substring(last, match.start)));
+      }
+      spans.add(TextSpan(
+        text: displayName.substring(match.start, match.end),
+        style: TextStyle(
+          backgroundColor: Colors.yellow.withOpacity(0.15),
+          color: Colors.white,
+        ),
+      ));
+      last = match.end;
+    }
+    if (last < displayName.length) {
+      spans.add(TextSpan(text: displayName.substring(last)));
+    }
+    return spans;
   }
 }

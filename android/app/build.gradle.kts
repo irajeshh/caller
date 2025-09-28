@@ -32,8 +32,8 @@ android {
         applicationId = "com.example.largedialer"
         minSdk = flutter.minSdkVersion
         targetSdk = 36
-        versionCode = 31
-        versionName = "2.64.2"
+        versionCode = 2
+        versionName = "2.0.0"
     }
 
     signingConfigs {

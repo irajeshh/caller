@@ -1,5 +1,6 @@
-import './Home.dart';
 import 'package:flutter/material.dart';
+
+import './Home.dart';
 
 void main() {
   runApp(const MyApp());
@@ -14,14 +15,9 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Caller',
-      theme: ThemeData.dark(
-        
-      ).copyWith(
+      theme: ThemeData.dark(useMaterial3: false).copyWith(
         scaffoldBackgroundColor: Colors.grey.shade900,
-        // primaryColor: Colors.black,
-        // colorScheme: ColorScheme.fromSwatch().copyWith(secondary: Colors.white),
       ),
-      
       home: HomePage(),
     );
   }

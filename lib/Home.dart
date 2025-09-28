@@ -1,8 +1,10 @@
 import 'package:direct_dialer/direct_dialer.dart';
 import 'package:fast_contacts/fast_contacts.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -12,6 +14,7 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  final PageController pageController = PageController();
   List<Contact> _contacts = const [];
   bool isTamil = true;
 
@@ -28,26 +31,51 @@ class _HomePageState extends State<HomePage> {
   String selectedAlphabet = '';
   final ScrollController _scrollController = ScrollController();
 
+  // Add for recent calls
+  List<String> _recentNumbers = [];
+
+  int currentPage = 0;
+
   @override
   void initState() {
     super.initState();
     loadContacts();
+    loadRecentNumbers();
   }
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Scaffold(
-        // appBar: appBar(),
-        body: body(),
-      ),
+    return Scaffold(
+      appBar: appBar(),
+      body: body(),
+      bottomNavigationBar: bottomNav(),
     );
   }
 
   AppBar appBar() {
     return AppBar(
       title: Text('Caller'),
-      centerTitle: true,
+      actions: [
+        languageButton(),
+      ],
+    );
+  }
+
+  Widget languageButton() {
+    return IconButton(
+      icon: Icon(
+        Icons.translate,
+        color: isTamil ? Colors.green : Colors.grey,
+      ),
+      tooltip: isTamil ? 'Turn off Tamil' : 'Turn on Tamil',
+      onPressed: () {
+        setState(() {
+          isTamil = !isTamil;
+          selectedAlphabet = '';
+          pageController.jumpToPage(1);
+          _scrollController.jumpTo(0);
+        });
+      },
     );
   }
 
@@ -55,22 +83,48 @@ class _HomePageState extends State<HomePage> {
     if (_isLoading) {
       return Center(child: CircularProgressIndicator());
     } else {
-      return column();
+      return PageView(
+        controller: pageController,
+        onPageChanged: (int i) async {
+          setState(() => currentPage = i);
+          if (i == 0) await loadRecentNumbers();
+        },
+        children: [
+          recentsPage(),
+          allPage(),
+        ],
+      );
     }
   }
 
-  Widget column() {
-    return ListView(
-      physics: BouncingScrollPhysics(),
+  Widget allPage() {
+    List<Contact> list = contacts.where((c) {
+      String fullName = c.displayName;
+      // String firstLetter = fullName.characters.firstOrNull ?? '';
+      return selectedAlphabet.isEmpty ? true : fullName.contains(selectedAlphabet);
+      // firstLetter == selectedAlphabet;
+    }).toList();
+    return Column(
       children: [
-        langaugeSwitch(),
-        filterBoard(),
-        listView(),
+        _listView(list),
+        keyboard(),
       ],
     );
   }
 
-  Widget filterBoard() {
+  Widget recentsPage() {
+    List<Contact> list = contacts.where((c) {
+      return c.phones.any((phone) => _recentNumbers.contains(phone.number));
+    }).toList();
+
+    return Column(
+      children: [
+        _listView(list),
+      ],
+    );
+  }
+
+  Widget keyboard() {
     List<String> alphabets = [];
     for (Contact contact in contacts) {
       String firstLetter = contact.displayName.trim().characters.firstOrNull ?? '';
@@ -81,114 +135,165 @@ class _HomePageState extends State<HomePage> {
 
     alphabets.sort();
 
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: BouncingScrollPhysics(),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
-        childAspectRatio: 2,
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
-      ),
-      padding: EdgeInsets.all(8),
-      itemCount: alphabets.length,
-      itemBuilder: (BuildContext context, int index) {
-        String a = alphabets[index];
-        bool isSelected = selectedAlphabet == a;
-        Color color = isSelected ? Colors.purple : Colors.transparent;
-        return InkWell(
-          onTap: () {
-            setState(() {
-              selectedAlphabet = isSelected ? '' : a;
-            });
-          },
-          child: Container(
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey),
-            ),
-            child: Text(
-              a,
-              style: TextStyle(
-                color: isSelected ? Colors.white : null,
-                fontSize: 28,
+    return Container(
+      height: 350,
+      color: const Color.fromARGB(255, 47, 1, 26),
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: BouncingScrollPhysics(),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 5,
+          childAspectRatio: 2,
+        ),
+        itemCount: alphabets.length,
+        itemBuilder: (BuildContext context, int index) {
+          String a = alphabets[index];
+          bool isSelected = selectedAlphabet == a;
+          Color color = isSelected ? Colors.purple : Colors.transparent;
+          return InkWell(
+            onTap: () {
+              setState(() {
+                selectedAlphabet = isSelected ? '' : a;
+              });
+            },
+            child: Container(
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: color,
+                // borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.withOpacity(0.2)),
+              ),
+              child: Text(
+                a,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: isSelected ? Colors.white : null,
+                  fontSize: 22,
+                ),
               ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 
-  Widget langaugeSwitch() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Text(
-          'தமிழ்',
-          style: TextStyle(fontSize: 24),
+  Widget _listView(List<Contact> list) {
+    return Expanded(
+      child: list.isEmpty
+          ? Center(child: Text('No contacts found'))
+          : ListView.builder(
+              physics: BouncingScrollPhysics(),
+              controller: _scrollController,
+              itemCount: list.length,
+              itemBuilder: (context, int index) {
+                final Contact contact = list[index];
+                return Container(
+                  margin: const EdgeInsets.symmetric(vertical: 4),
+                  padding: EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(
+                        width: 0.25,
+                        color: Colors.yellow.withOpacity(0.25),
+                      ),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Text(
+                        '${index + 1}. ',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                        ),
+                      ),
+                      Expanded(
+                        child: RichText(
+                          text: TextSpan(
+                            children: _highlightAlphabet(contact.displayName),
+                            style: TextStyle(
+                              fontSize: 22,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                      callButton(contact.phones.firstOrNull?.number),
+                    ],
+                  ),
+                );
+              },
+            ),
+    );
+  }
+
+  Widget callButton(String? number) {
+    if (number == null) return SizedBox.shrink();
+    return CircleAvatar(
+      backgroundColor: Colors.green.shade800,
+      child: IconButton(
+        icon: Icon(
+          Icons.call,
+          size: 18,
+          color: Colors.white,
         ),
-        Switch(
-          value: isTamil,
-          onChanged: (value) {
-            setState(() {
-              isTamil = value;
-              selectedAlphabet = '';
-            });
-          },
-        ),
+        onPressed: () async {
+          if (kDebugMode) {
+            print('Dialing $number');
+          } else {
+            final DirectDialer dialer = await DirectDialer.instance;
+            await dialer.dial(number);
+          }
+          await saveRecentNumber(number);
+        },
+      ),
+    );
+  }
+
+  Widget bottomNav() {
+    return BottomNavigationBar(
+      showSelectedLabels: false,
+      showUnselectedLabels: false,
+      selectedItemColor: Colors.white,
+      unselectedItemColor: Colors.grey,
+      backgroundColor: Colors.grey.shade900,
+      currentIndex: currentPage,
+      onTap: pageController.jumpToPage,
+      items: const [
+        BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Recent'),
+        BottomNavigationBarItem(icon: Icon(Icons.list), label: 'All'),
       ],
     );
   }
 
-  Widget listView() {
-    List<Contact> list = contacts.where((c) {
-      String firstLetter = c.displayName.characters.firstOrNull ?? '';
-      return selectedAlphabet.isEmpty ? true : firstLetter == selectedAlphabet;
-    }).toList();
-    return ListView.builder(
-      physics: BouncingScrollPhysics(),
-      shrinkWrap: true,
-      controller: _scrollController,
-      itemCount: list.length,
-      itemBuilder: (context, index) {
-        final Contact contact = list[index];
-        return Container(
-          margin: const EdgeInsets.symmetric(vertical: 12),
-          padding: EdgeInsets.only(bottom: 8),
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(color: Colors.grey.shade100),
-            ),
-          ),
-          child: ListTile(
-            title: Text(
-              contact.displayName,
-              style: TextStyle(
-                fontSize: 35,
-              ),
-            ),
-            trailing: callButton(contact.phones.first.number),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget callButton(String number) {
-    return CircleAvatar(
-      radius: 50,
-      backgroundColor: Colors.green.shade800,
-      child: IconButton(
-        icon: Icon(Icons.call, color: Colors.white),
-        onPressed: () async {
-          final DirectDialer dialer = await DirectDialer.instance;
-          await dialer.dial(number);
-        },
-      ),
-    );
+  List<InlineSpan> _highlightAlphabet(String displayName) {
+    if (selectedAlphabet.isEmpty) {
+      return [TextSpan(text: displayName)];
+    }
+    final matches = RegExp(RegExp.escape(selectedAlphabet)).allMatches(displayName);
+    if (matches.isEmpty) {
+      return [TextSpan(text: displayName)];
+    }
+    List<InlineSpan> spans = [];
+    int last = 0;
+    for (final match in matches) {
+      if (match.start > last) {
+        spans.add(TextSpan(text: displayName.substring(last, match.start)));
+      }
+      spans.add(TextSpan(
+        text: displayName.substring(match.start, match.end),
+        style: TextStyle(
+          backgroundColor: Colors.yellow.withOpacity(0.15),
+          color: Colors.white,
+        ),
+      ));
+      last = match.end;
+    }
+    if (last < displayName.length) {
+      spans.add(TextSpan(text: displayName.substring(last)));
+    }
+    return spans;
   }
 
   Future<void> loadContacts() async {
@@ -206,5 +311,26 @@ class _HomePageState extends State<HomePage> {
     }
     if (!mounted) return;
     setState(() {});
+  }
+
+  // Save recent number to SharedPreferences
+  Future<void> saveRecentNumber(String number) async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _recentNumbers.remove(number); // Remove if already exists
+      _recentNumbers.insert(0, number); // Add to start
+      if (_recentNumbers.length > 50) {
+        _recentNumbers = _recentNumbers.sublist(0, 50);
+      }
+    });
+    await prefs.setStringList('recent_numbers', _recentNumbers);
+  }
+
+  // Load recent numbers from SharedPreferences
+  Future<void> loadRecentNumbers() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _recentNumbers = prefs.getStringList('recent_numbers') ?? [];
+    });
   }
 }

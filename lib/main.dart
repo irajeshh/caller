@@ -1,5 +1,6 @@
-import 'package:caller/Home.dart';
 import 'package:flutter/material.dart';
+
+import './Home.dart';
 
 void main() {
   runApp(const MyApp());
@@ -14,7 +15,9 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Caller',
-      theme: ThemeData.dark(),
+      theme: ThemeData.dark(useMaterial3: false).copyWith(
+        scaffoldBackgroundColor: Colors.grey.shade900,
+      ),
       home: HomePage(),
     );
   }

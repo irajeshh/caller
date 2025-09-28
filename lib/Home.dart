@@ -16,7 +16,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final PageController pageController = PageController();
   List<Contact> _contacts = const [];
-  bool isTamil = false;
+  bool isTamil = true;
 
   List<Contact> get contacts {
     return _contacts.where((c) {
@@ -57,7 +57,6 @@ class _HomePageState extends State<HomePage> {
       title: Text('Caller'),
       actions: [
         languageButton(),
-        
       ],
     );
   }
@@ -73,6 +72,7 @@ class _HomePageState extends State<HomePage> {
         setState(() {
           isTamil = !isTamil;
           selectedAlphabet = '';
+          pageController.jumpToPage(1);
           _scrollController.jumpTo(0);
         });
       },
